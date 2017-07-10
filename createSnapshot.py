@@ -1,9 +1,18 @@
 import boto3
 from operator import itemgetter # for the sorting, later
+import sys
 
-description = 'ARK Backup Test Server' # TODO: make the description user settable
+if len(sys.argv) < 2:
+    try:
+        description = float(raw_input("Snapshot description: "))
+    except ValueError:
+        description = "Default Snapshot Description"
+else:
+    description = sys.argv[1]
 
-# bizarre method to get the instance ID because apparently this functionality is missing from boto3:
+numToKeep = 2 # number of snapshots to keep
+
+# get the instance ID:
 import urllib2
 instanceId = urllib2.urlopen('http://169.254.169.254/latest/meta-data/instance-id').read()
 
@@ -35,16 +44,14 @@ for snap in snapshots['Snapshots']:
 snapList = sorted(snapList, key=itemgetter(1))
 
 # and delete the first one that has the right description:
-counter = 1 # we want 5 snapshots total so we need to do some counting
+counter = 1 # we want numToKeep snapshots total so we need to do some counting
 for item in snapList:
   if item[2] == description:
     if counter == 1:
       # this is the first one so let's keep track of it
       deletionCandidate = item[0]
-    print item
-    if counter > 5:
-      # we have 5, so we can go ahead and delete the oldest one
-      print "Going to delete snapshot ID: ", deletionCandidate
+    if counter > numToKeep:
+      # we have the right number, so we can go ahead and delete the oldest one
       ec2resource = boto3.resource('ec2')
       snapshot = ec2resource.Snapshot(deletionCandidate)
       snapshot.delete()
@@ -53,4 +60,4 @@ for item in snapList:
 
 # crontab entry: 
 # crontab -e
-# 0 * * * * /usr/bin/python /home/ubuntu/scripts/createSnapshot.py
+# 0 * * * * /usr/bin/python /home/ubuntu/scripts/createSnapshot.py description
